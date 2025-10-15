@@ -1,0 +1,7 @@
+openai
+langchain
+requests
+beautifulsoup4
+PyPDF2
+tiktoken
+markdownify
