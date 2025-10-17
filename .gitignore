@@ -1,0 +1,40 @@
+# --- PYTHON ENVIRONMENT ---
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# --- ENVIRONMENT VARIABLES ---
+.env
+.env.local
+.env.*
+
+# --- IDE & SYSTEM FILES ---
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# --- OUTPUT & DATA ---
+data/output/
+*.log
+logs/
+cache/
+tmp/
+
+# --- JUPYTER NOTEBOOK CHECKPOINTS ---
+.ipynb_checkpoints/
+
+# --- BUILD / DISTRIBUTION ---
+build/
+dist/
+*.egg-info/
+
+# --- TESTING ---
+.coverage
+htmlcov/
+.tox/
+pytest_cache/
