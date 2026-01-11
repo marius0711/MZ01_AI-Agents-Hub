@@ -60,17 +60,40 @@ data/annotated_comments.json
 - Deterministic (temperature=0)
 - Conservative classification (neutrality in uncertainty)
 
-The AI classifies, it does not evaluate.
+The AI classifies individual comments.
+All judgments, trends and recommendations are derived from deterministic logic.
 
 3️⃣ Calculate Metrics (deterministic)
 ```bash
 python scripts/compute_metrics.py
 ```
 **Result**
-```bash
 data/aggregated_metrics.json
-```
+
+This file is the single source for reporting.  
+Depending on the current version, it may include:
+- sentiment_trend
+- intent_shift
+- escalation
+- criticism_structure
+- emotion_context
+- trend_flags
+- issues
 ➡️ The central decision artifact (all trends, shares, escalation signals)
+
+**Important note on interpretation**
+
+The system intentionally separates two analytical layers:
+
+- **Trigger & Criticism Analysis**  
+  → Based **only on negative comments**  
+  → Used to detect escalation and risk
+
+- **Issues & Topics Development**  
+  → Based on **all comments (positive, neutral, negative)**  
+  → Used to understand what the community is broadly discussing
+
+High issue frequency does **not** imply high criticism.
 
 4️⃣ Generate Visualization
 ```bash
@@ -124,13 +147,21 @@ Percentage of all comments classified as negative.
 **Avg. Emotional Intensity (Negative)**
 Measures emotional strength of negative comments (0 = neutral, 1 = highly emotional).
 
-**Escalation Indicator**
-Tracks sentiment trajectory:
-- **Trending up**: negative sentiment increasing
-- **Stable**: no significant change
-- **Trending down**: negative sentiment decreasing
+**Escalation Level (stable / watch / critical)**
+Derived from the **share of aggressive criticism** in the focus week.
+Used as the primary risk signal in the report.
+
 
 **Low** (<0.1) → Normal, no action required
 **Medium** (0.1–0.2) → Worthy of attention, consider monitoring community sentiment
 **High** (>0.2) → Critical, active intervention recommended
+
+**Trigger Topics**
+Recurring themes within **negative comments only**.
+Used to assess whether criticism is focused (structural) or fragmented (situational).
+
+**Issues / Topics**
+High-level topics derived from all comments.
+not whether the discussion is escalating.
+
 
