@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.env
+
+# Data artifacts
+data/raw_comments.json
+data/annotated_comments.json
+data/aggregated_metrics.json
+
+# Files with secrets
+config.py
+
+# Outputs
+output/*.png
+output/*.md
+
+# OS
+.DS_Store
+data/
+output/

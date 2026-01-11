@@ -1,0 +1,7 @@
+anthropic
+pandas
+matplotlib
+python-dateutil
+tqdm
+markdown
+pdfkit
