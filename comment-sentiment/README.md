@@ -18,16 +18,6 @@ This tool provides:
 - a few loud comments
 - sporadic manual reading
 
-This leads to:
-- overreacting to isolated criticism
-- missing slow sentiment shifts
-- unnecessary uncertainty
-
-This tool provides:
-- structured, explainable insights
-- without dashboards
-- without black-box AI judgments
-
 ---
 
 ## Core idea
@@ -54,13 +44,35 @@ This makes the output:
    - abstract topics
 3. Aggregates results over time
 4. Computes simple, explainable metrics:
-   - sentiment ratios
-   - intent shifts
-   - topic repetition
-   - escalation indicator
+   - sentiment ratios (positive / neutral / negative)
+   - intent shifts (supportive / neutral / critical)
+   - trigger topic concentration (negative comments only)
+   - escalation level (stable / watch / critical)
 5. Generates a **one-page decision-oriented report**
 
 ---
+
+## Analytical Layers (Important for interpretation)
+
+The system intentionally separates **two analytical layers** to avoid misinterpretation:
+
+### 1) Trigger & Criticism Analysis
+- Based **only on negative comments**
+- Used to detect escalation, risk, and potential need for reaction
+- Feeds into:
+  - escalation level (stable / watch / critical)
+  - criticism structure (focused vs. fragmented)
+  - trigger topics
+
+### 2) Issues Overview
+- Based on **all comments** (positive, neutral, negative)
+- Used to understand what the community is broadly talking about (themes, interests, recurring discussions)
+- High frequency **does not imply criticism**
+
+This separation ensures that:
+- popular topics are not mistaken for critical issues
+- criticism is evaluated by intensity and structure, not volume alone
+
 
 ## Example output
 
@@ -79,7 +91,8 @@ The report always includes:
 
 ## Visual output
 
-The system generates minimal visualizations to support interpretation of community feedback:
+The system generates minimal visualizations to support interpretation of trends,
+not as standalone decision tools:
 
 - **Sentiment trend** (`sentiment_trend.png`):  
   Shows the weekly share of positive, neutral, and negative top-level comments over time. Helps track overall mood and detect shifts in community sentiment.
