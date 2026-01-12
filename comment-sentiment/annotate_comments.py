@@ -1,5 +1,4 @@
 import json
-import os
 import time
 from datetime import datetime
 from typing import List, Dict, Any, Optional
@@ -13,11 +12,30 @@ from config import (
     CLAUDE_MODEL,
     BATCH_SIZE,
 )
+from pathlib import Path
 
-INPUT_PATH = "data/raw_comments.json"
-OUTPUT_PATH = "data/annotated_comments.json"
-DEBUG_DIR = "data/debug_claude"
-os.makedirs(DEBUG_DIR, exist_ok=True)
+def _slugify_channel(handle: str) -> str:
+    s = (handle or "").strip()
+    if s.startswith("@"):
+        s = s[1:]
+    s = s.lower()
+    s = "".join(ch for ch in s if ch.isalnum() or ch in ("-", "_"))
+    return s or "channel"
+
+CHANNEL_HANDLE = getattr(config, "CHANNEL_HANDLE", "")
+CHANNEL_SLUG = _slugify_channel(CHANNEL_HANDLE)
+
+# Base directory = comment-sentiment/
+BASE_DIR = Path(__file__).resolve().parent
+
+DATA_DIR = BASE_DIR / "data"
+DATA_DIR.mkdir(exist_ok=True)
+
+INPUT_PATH = DATA_DIR / f"raw_comments_{CHANNEL_SLUG}.json"
+OUTPUT_PATH = DATA_DIR / f"annotated_comments_{CHANNEL_SLUG}.json"  
+
+DEBUG_DIR = DATA_DIR / "debug_claude"
+DEBUG_DIR.mkdir(exist_ok=True)
 
 # ---- Flexible defaults (override via config.py if present) ----
 DEFAULT_MAX_TOKENS = 3500
@@ -89,10 +107,9 @@ Comments:
 
 def _debug_dump(prefix: str, text: str) -> str:
     ts = int(time.time())
-    path = os.path.join(DEBUG_DIR, f"{prefix}_{ts}.txt")
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(text)
-    return path
+    path = DEBUG_DIR / f"{prefix}_{ts}.txt"
+    path.write_text(text, encoding="utf-8")
+    return str(path)
 
 
 def _strip_code_fences(text: str) -> str:
@@ -183,16 +200,17 @@ def annotate_batch(client: Anthropic, batch: List[Dict[str, Any]], attempt: int 
         raise ValueError(f"Claude did not return valid JSON (dumped to {bad_path}). Original error: {e}") from e
 
 
-def _load_json(path: str, default):
+def _load_json(path: Path, default):
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with path.open("r", encoding="utf-8") as f:
             return json.load(f)
     except FileNotFoundError:
         return default
     except json.JSONDecodeError as e:
-        # If annotated file got corrupted, keep it safe and start fresh
-        backup = f"{path}.corrupt_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        os.rename(path, backup)
+        backup = path.with_suffix(
+            f".corrupt_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        )
+        path.rename(backup)
         print(f"[warn] JSON decode failed for {path}. Moved to {backup}. Starting fresh.")
         return default
 
@@ -327,8 +345,9 @@ def main():
             annotated_ids.add(cid)
 
         # Crash-safe write after each batch
-        with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
+        with OUTPUT_PATH.open("w", encoding="utf-8") as f:
             json.dump(annotated, f, ensure_ascii=False, indent=2)
+
 
         time.sleep(SLEEP_SECONDS)
 

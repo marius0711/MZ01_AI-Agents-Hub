@@ -1,58 +1,98 @@
 import json
 from pathlib import Path
-from datetime import datetime
 
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.ticker import PercentFormatter
 
-# --- paths ---
-BASE_DIR = Path(__file__).resolve().parent.parent
+import config
+
+
+def _slugify_channel(handle: str) -> str:
+    """
+    Turn a channel handle into a filesystem-safe slug.
+    Example: "@timgabelofficial" -> "timgabelofficial"
+    """
+    s = (handle or "").strip()
+    if s.startswith("@"):
+        s = s[1:]
+    s = s.lower()
+    s = "".join(ch for ch in s if ch.isalnum() or ch in ("-", "_"))
+    return s or "channel"
+
+
+# -----------------------------
+# Paths & Channel
+# -----------------------------
+BASE_DIR = Path(__file__).resolve().parent.parent  # comment-sentiment/
 DATA_DIR = BASE_DIR / "data"
 OUTPUT_DIR = BASE_DIR / "output"
-OUTPUT_DIR.mkdir(exist_ok=True)
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-INPUT_PATH = DATA_DIR / "aggregated_metrics.json"
-OUTPUT_PATH = OUTPUT_DIR / "sentiment_trend.png"
+CHANNEL_HANDLE = getattr(config, "CHANNEL_HANDLE", "")
+CHANNEL_SLUG = _slugify_channel(CHANNEL_HANDLE)
 
-
-def load_data():
-    with open(INPUT_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
+INPUT_PATH = DATA_DIR / f"aggregated_metrics_{CHANNEL_SLUG}.json"
+OUTPUT_PATH = OUTPUT_DIR / f"sentiment_trend_{CHANNEL_SLUG}.png"
 
 
-def main():
-    metrics = load_data()
-    df = pd.DataFrame(metrics["sentiment_trend"])
+# -----------------------------
+# Main
+# -----------------------------
+def main() -> None:
+    # --- Load metrics ---
+    with INPUT_PATH.open("r", encoding="utf-8") as f:
+        metrics = json.load(f)
 
-    # ✅ robust ordering key
+    sentiment_trend = metrics.get("sentiment_trend", [])
+    if not sentiment_trend:
+        raise ValueError("No 'sentiment_trend' found in aggregated metrics.")
+
+    df = pd.DataFrame(sentiment_trend)
+
+    # --- Week handling (ISO-safe) ---
     df["week_period"] = pd.PeriodIndex(df["week"], freq="W")
     df = df.sort_values("week_period").reset_index(drop=True)
 
-    # Pivot: week x sentiment
-    pivot = df.pivot(index="week_period", columns="sentiment", values="ratio").fillna(0)
+    def _week_label(p: pd.Period) -> str:
+        iso = p.end_time.isocalendar()
+        return f"KW {iso.week} ({iso.year})"
 
-    # --- X labels: KW + Jahr (Ende der Woche) ---
-    week_labels = [
-        f"KW {p.end_time.isocalendar()[1]} ({p.end_time.year})"
-        for p in pivot.index
-    ]
-    pivot.index = week_labels
+    df["week_label"] = df["week_period"].apply(_week_label)
 
+    order = df["week_label"].drop_duplicates().tolist()
+    df["week_label"] = pd.Categorical(df["week_label"], categories=order, ordered=True)
+
+    # --- Pivot: week x sentiment ---
+    pivot = (
+        df.pivot(index="week_label", columns="sentiment", values="ratio")
+        .fillna(0)
+    )
+
+    # -----------------------------
     # Plot
-    plt.figure(figsize=(8, 4))
-    pivot.plot(kind="line", marker="o")
+    # -----------------------------
+    fig, ax = plt.subplots(figsize=(8, 4))
 
-    plt.title("Community Sentiment Trend (Top-Level Comments)")
-    plt.ylabel("Share of Comments")
-    plt.xlabel("Week")
-    plt.ylim(0, 1)
-    plt.grid(True, alpha=0.3)
-    plt.legend(title="Sentiment")
-    plt.xticks(rotation=45, ha="right")
+    pivot.plot(kind="line", marker="o", ax=ax)
 
-    plt.tight_layout()
-    plt.savefig(OUTPUT_PATH)
-    plt.close()
+    title_suffix = CHANNEL_HANDLE if CHANNEL_HANDLE else CHANNEL_SLUG
+    ax.set_title("Community Sentiment Trend (Top-Level Comments)")
+
+    ax.set_xlabel("Woche")
+    ax.set_ylabel("Anteil der Kommentare (%)")
+
+    ax.set_ylim(0, 1)
+    ax.yaxis.set_major_formatter(PercentFormatter(1.0))
+
+    ax.grid(True, alpha=0.3)
+    ax.legend(title="Sentiment", loc="upper left")
+
+    ax.tick_params(axis="x", labelrotation=30)
+
+    fig.tight_layout()
+    fig.savefig(OUTPUT_PATH, dpi=200, bbox_inches="tight")
+    plt.close(fig)
 
     print(f"Sentiment trend plot written to {OUTPUT_PATH}")
 

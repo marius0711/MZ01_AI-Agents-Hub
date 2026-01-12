@@ -14,7 +14,23 @@ from config import (
     MAX_COMMENTS,
 )
 
-OUTPUT_PATH = "data/raw_comments.json"
+from pathlib import Path
+
+def _slugify_channel(handle: str) -> str:
+    s = (handle or "").strip()
+    if s.startswith("@"):
+        s = s[1:]
+    s = s.lower()
+    s = "".join(ch for ch in s if ch.isalnum() or ch in ("-", "_"))
+    return s or "channel"
+
+CHANNEL_SLUG = _slugify_channel(CHANNEL_HANDLE)
+
+BASE_DIR = Path(__file__).resolve().parent  # wenn file im project-root liegt
+DATA_DIR = BASE_DIR / "data"
+DATA_DIR.mkdir(exist_ok=True)
+
+OUTPUT_PATH = DATA_DIR / f"raw_comments_{CHANNEL_SLUG}.json"
 
 # ---- Flexible defaults (override via config.py if present) ----
 DEFAULT_WEEKS_BACK = 3
@@ -296,7 +312,6 @@ def fetch_comments_for_video(
 
 
 def main():
-    os.makedirs("data", exist_ok=True)
 
     youtube = youtube_client()
 
@@ -325,7 +340,7 @@ def main():
             all_comments = all_comments[:MAX_COMMENTS]
             break
 
-    with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
+    with OUTPUT_PATH.open("w", encoding="utf-8") as f:
         json.dump(all_comments, f, ensure_ascii=False, indent=2)
 
     print(f"Saved {len(all_comments)} comments to {OUTPUT_PATH}")

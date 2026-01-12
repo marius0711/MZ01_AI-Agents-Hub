@@ -1,18 +1,29 @@
-# generate_html.py
 import pathlib
 import markdown
+import config
+
+def _slugify_channel(handle: str) -> str:
+    s = (handle or "").strip()
+    if s.startswith("@"):
+        s = s[1:]
+    s = s.lower()
+    s = "".join(ch for ch in s if ch.isalnum() or ch in ("-", "_"))
+    return s or "channel"
+
+CHANNEL_HANDLE = getattr(config, "CHANNEL_HANDLE", "")
+CHANNEL_SLUG = _slugify_channel(CHANNEL_HANDLE)
 
 # --- Pfade ---
 BASE_DIR = pathlib.Path(__file__).resolve().parent
 OUTPUT_DIR = BASE_DIR / "output"
 
-# Neuestes Report-MD automatisch finden
-md_files = sorted(OUTPUT_DIR.glob("report_biasedskeptic_*.md"))
+# Neuestes Report-MD für diesen Channel automatisch finden
+md_files = sorted(OUTPUT_DIR.glob("report_*.md"))
 if not md_files:
-    raise FileNotFoundError("Kein Markdown-Report gefunden.")
+    raise FileNotFoundError(f"Kein Markdown-Report gefunden für Channel '{CHANNEL_HANDLE}' (slug: {CHANNEL_SLUG}).")
 
-MD_FILE = md_files[-1]  # neuester Report
-HTML_FILE = OUTPUT_DIR / "report_biasedskeptic.html"
+MD_FILE = md_files[-1]  # neuester Report für den Channel
+HTML_FILE = OUTPUT_DIR / f"report_{CHANNEL_SLUG}.html"
 
 # Markdown laden
 with open(MD_FILE, "r", encoding="utf-8") as f:

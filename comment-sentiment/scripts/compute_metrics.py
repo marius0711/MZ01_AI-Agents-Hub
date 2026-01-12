@@ -1,17 +1,11 @@
 import json
 import config
+import pandas as pd
 from collections import Counter
 from pathlib import Path
 from typing import Any, Dict, List
-
-import pandas as pd
+from pandas.api.types import DatetimeTZDtype
 from dateutil.parser import isoparse
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = BASE_DIR / "data"
-
-INPUT_PATH = DATA_DIR / "annotated_comments.json"
-OUTPUT_PATH = DATA_DIR / "aggregated_metrics.json"
 
 # --- Intent Shift mapping (MVP-stable) ---
 INTENT_GROUPS = {
@@ -33,20 +27,53 @@ def _get_cfg_int(name: str, default: int) -> int:
 
 LATEST_WEEKS = _get_cfg_int("LATEST_WEEKS", DEFAULT_LATEST_WEEKS)
 
+def _slugify_channel(handle: str) -> str:
+    s = (handle or "").strip()
+    if s.startswith("@"):
+        s = s[1:]
+    s = s.lower()
+    s = "".join(ch for ch in s if ch.isalnum() or ch in ("-", "_"))
+    return s or "channel"
+
+
+CHANNEL_HANDLE = getattr(config, "CHANNEL_HANDLE", "")
+CHANNEL_SLUG = _slugify_channel(CHANNEL_HANDLE)
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+DATA_DIR = BASE_DIR / "data"
+
+INPUT_PATH = DATA_DIR / f"annotated_comments_{CHANNEL_SLUG}.json"
+OUTPUT_PATH = DATA_DIR / f"aggregated_metrics_{CHANNEL_SLUG}.json"
+
 
 def load_data(path: Path) -> pd.DataFrame:
-    with open(path, "r", encoding="utf-8") as f:
+    with path.open("r", encoding="utf-8") as f:
         data = json.load(f)
     return pd.DataFrame(data)
 
 
 def prepare_dataframe(df: pd.DataFrame) -> pd.DataFrame:
-    # ✅ FIX: parse published_at properly
+    # Parse published_at
     df["published_at"] = df["published_at"].apply(isoparse)
 
-    # ✅ FIX: keep a real time key for sorting/grouping
+    # Ensure pandas datetime dtype
+    df["published_at"] = pd.to_datetime(df["published_at"], errors="coerce")
+
+    # Normalize timezone handling to avoid Period tz-drop warning:
+    # 1) convert to Europe/Berlin if tz-aware
+    # 2) drop tz info (PeriodIndex has no timezone)
+    # If tz-aware -> convert and drop tz
+    if isinstance(df["published_at"].dtype, DatetimeTZDtype):
+        df["published_at"] = df["published_at"].dt.tz_convert("Europe/Berlin").dt.tz_localize(None)
+
+    else:
+        # if tz-naive, keep as-is (already local-naive)
+        df["published_at"] = df["published_at"]
+
+    # Keep a real time key for sorting/grouping
     df["week_period"] = df["published_at"].dt.to_period("W")
     df["week"] = df["week_period"].astype(str)  # label only
+
 
     # Normalize strings
     df["sentiment"] = df["sentiment"].astype(str).str.strip().str.lower()
@@ -84,7 +111,7 @@ def sentiment_trend(df: pd.DataFrame) -> pd.DataFrame:
     )
     trend["ratio"] = trend["count"] / trend.groupby("week_period")["count"].transform("sum")
 
-    # ✅ FIX: stable sort + label for plotting/reporting
+    # Stable sort + label for plotting/reporting
     trend = trend.sort_values(["week_period", "sentiment"]).reset_index(drop=True)
     trend["week"] = trend["week_period"].astype(str)
     return trend
@@ -98,7 +125,7 @@ def intent_distribution(df: pd.DataFrame) -> pd.DataFrame:
     )
     dist["ratio"] = dist["count"] / dist.groupby("week_period")["count"].transform("sum")
 
-    # ✅ FIX: stable sort + label
+    # Stable sort + label
     dist = dist.sort_values(["week_period", "intent"]).reset_index(drop=True)
     dist["week"] = dist["week_period"].astype(str)
     return dist
@@ -115,7 +142,7 @@ def intent_shift(df: pd.DataFrame) -> pd.DataFrame:
     )
     grouped["ratio"] = grouped["count"] / grouped.groupby("week_period")["count"].transform("sum")
 
-    # ✅ FIX: stable sort + label
+    # Stable sort + label
     grouped = grouped.sort_values(["week_period", "intent_group"]).reset_index(drop=True)
     grouped["week"] = grouped["week_period"].astype(str)
     return grouped
@@ -207,8 +234,8 @@ def escalation_score(df: pd.DataFrame):
             "thresholds": {"stable_lt": 0.15, "watch_lt": 0.30, "critical_ge": 0.30},
         })
 
-    # ✅ FIX: ensure chronological order
-    results = sorted(results, key=lambda x: x["week"])
+    # Ensure chronological order
+    results = sorted(results, key=lambda x: x["week_period"])
     return results
 
 
@@ -253,7 +280,7 @@ def criticism_structure_by_week(df: pd.DataFrame, top_n: int = 5):
             "top_topics": counts.most_common(top_n),
         })
 
-    results = sorted(results, key=lambda x: x["week"])
+    results = sorted(results, key=lambda x: x["week_period"])
     return results
 
 
@@ -294,7 +321,7 @@ def emotion_context_by_week(df: pd.DataFrame):
             "thresholds": {"normal_lt": 0.05, "elevated_lt": 0.15, "high_ge": 0.15},
         })
 
-    results = sorted(results, key=lambda x: x["week"])
+    results = sorted(results, key=lambda x: x["week_period"])
     return results
 
 
@@ -373,7 +400,7 @@ def main():
         "trend_flags": trend_flags(sentiment_df, intent_shift_df),
     }
 
-    with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
+    with OUTPUT_PATH.open("w", encoding="utf-8") as f:
         json.dump(output, f, ensure_ascii=False, indent=2)
 
     print(f"[config] LATEST_WEEKS={LATEST_WEEKS}")
