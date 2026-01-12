@@ -9,10 +9,6 @@ import config
 
 
 def _slugify_channel(handle: str) -> str:
-    """
-    Turn a channel handle into a filesystem-safe slug.
-    Example: "@timgabelofficial" -> "timgabelofficial"
-    """
     s = (handle or "").strip()
     if s.startswith("@"):
         s = s[1:]
@@ -36,9 +32,6 @@ INPUT_PATH = DATA_DIR / f"aggregated_metrics_{CHANNEL_SLUG}.json"
 OUTPUT_PATH = OUTPUT_DIR / f"sentiment_trend_{CHANNEL_SLUG}.png"
 
 
-# -----------------------------
-# Main
-# -----------------------------
 def main() -> None:
     # --- Load metrics ---
     with INPUT_PATH.open("r", encoding="utf-8") as f:
@@ -56,7 +49,7 @@ def main() -> None:
 
     def _week_label(p: pd.Period) -> str:
         iso = p.end_time.isocalendar()
-        return f"KW {iso.week} ({iso.year})"
+        return f"KW {iso.week:02d} ({iso.year})"
 
     df["week_label"] = df["week_period"].apply(_week_label)
 
@@ -64,21 +57,36 @@ def main() -> None:
     df["week_label"] = pd.Categorical(df["week_label"], categories=order, ordered=True)
 
     # --- Pivot: week x sentiment ---
-    pivot = (
-        df.pivot(index="week_label", columns="sentiment", values="ratio")
-        .fillna(0)
-    )
+    pivot = df.pivot(index="week_label", columns="sentiment", values="ratio").fillna(0)
 
     # -----------------------------
     # Plot
     # -----------------------------
     fig, ax = plt.subplots(figsize=(8, 4))
+    
+    COLOR_MAP = {
+        "negative": "tab:red",
+        "neutral": "tab:orange",
+        "positive": "tab:green",
+    }
+    
+    for sentiment in pivot.columns:
+        ax.plot(
+            pivot.index,
+            pivot[sentiment],
+            marker="o",
+            label=sentiment,
+            color=COLOR_MAP.get(sentiment, "gray"),
+        )
 
-    pivot.plot(kind="line", marker="o", ax=ax)
 
-    title_suffix = CHANNEL_HANDLE if CHANNEL_HANDLE else CHANNEL_SLUG
+    # Force all x tick labels to show
+    labels = list(pivot.index)
+    ax.set_xticks(range(len(labels)))
+    ax.set_xticklabels(labels, rotation=30, ha="right")
+    ax.set_xlim(-0.5, len(labels) - 0.5)
+
     ax.set_title("Community Sentiment Trend (Top-Level Comments)")
-
     ax.set_xlabel("Woche")
     ax.set_ylabel("Anteil der Kommentare (%)")
 
@@ -87,8 +95,6 @@ def main() -> None:
 
     ax.grid(True, alpha=0.3)
     ax.legend(title="Sentiment", loc="upper left")
-
-    ax.tick_params(axis="x", labelrotation=30)
 
     fig.tight_layout()
     fig.savefig(OUTPUT_PATH, dpi=200, bbox_inches="tight")

@@ -9,10 +9,6 @@ import config
 
 
 def _slugify_channel(handle: str) -> str:
-    """
-    Turn a channel handle into a filesystem-safe slug.
-    Example: "@timgabelofficial" -> "timgabelofficial"
-    """
     s = (handle or "").strip()
     if s.startswith("@"):
         s = s[1:]
@@ -21,10 +17,7 @@ def _slugify_channel(handle: str) -> str:
     return s or "channel"
 
 
-# -----------------------------
-# Paths & Channel
-# -----------------------------
-BASE_DIR = Path(__file__).resolve().parent.parent  # comment-sentiment/
+BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 OUTPUT_DIR = BASE_DIR / "output"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -36,11 +29,7 @@ INPUT_PATH = DATA_DIR / f"aggregated_metrics_{CHANNEL_SLUG}.json"
 OUTPUT_PATH = OUTPUT_DIR / f"intent_shift_{CHANNEL_SLUG}.png"
 
 
-# -----------------------------
-# Main
-# -----------------------------
 def main() -> None:
-    # --- Load metrics ---
     with INPUT_PATH.open("r", encoding="utf-8") as f:
         metrics = json.load(f)
 
@@ -50,31 +39,48 @@ def main() -> None:
 
     df = pd.DataFrame(intent_shift)
 
-    # --- Week handling (ISO-safe) ---
     df["week_period"] = pd.PeriodIndex(df["week"], freq="W")
     df = df.sort_values("week_period").reset_index(drop=True)
 
     def _week_label(p: pd.Period) -> str:
         iso = p.end_time.isocalendar()
-        return f"KW {iso.week} ({iso.year})"
+        return f"KW {iso.week:02d} ({iso.year})"
 
     df["week_label"] = df["week_period"].apply(_week_label)
 
     order = df["week_label"].drop_duplicates().tolist()
     df["week_label"] = pd.Categorical(df["week_label"], categories=order, ordered=True)
 
-    # --- Pivot for plotting ---
-    pivot = (
-        df.pivot(index="week_label", columns="intent_group", values="ratio")
-        .fillna(0)
-    )
+    pivot = df.pivot(index="week_label", columns="intent_group", values="ratio").fillna(0)
 
     # -----------------------------
     # Plot
     # -----------------------------
     fig, ax = plt.subplots(figsize=(8, 4))
 
-    pivot.plot(kind="line", marker="o", ax=ax)
+    COLOR_MAP = {
+        "critical": "tab:red",
+        "supportive": "tab:green",
+        "neutral": "tab:orange",
+        "constructive": "tab:blue",
+        "mixed": "tab:blue",
+        "other": "tab:gray",
+    }
+
+    # Plot each line with deterministic colors (instead of pivot.plot auto-colors)
+    for group in pivot.columns:
+        ax.plot(
+            range(len(pivot.index)),
+            pivot[group].values,
+            marker="o",
+            label=group,
+            color=COLOR_MAP.get(str(group).lower(), "tab:gray"),
+        )
+
+    labels = list(pivot.index)
+    ax.set_xticks(range(len(labels)))
+    ax.set_xticklabels(labels, rotation=30, ha="right")
+    ax.set_xlim(-0.5, len(labels) - 0.5)
 
     title_suffix = CHANNEL_HANDLE if CHANNEL_HANDLE else CHANNEL_SLUG
     ax.set_title(f"Intent Shift in Community Comments – {title_suffix}")
@@ -87,8 +93,6 @@ def main() -> None:
 
     ax.grid(True, alpha=0.3)
     ax.legend(title="Intent Group", loc="upper left")
-
-    ax.tick_params(axis="x", labelrotation=30)
 
     fig.tight_layout()
     fig.savefig(OUTPUT_PATH, dpi=200, bbox_inches="tight")
