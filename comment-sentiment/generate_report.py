@@ -172,10 +172,13 @@ def pick_focus_week(metrics: Dict[str, Any], weeks_for_range: List[str], min_com
 # -----------------------------
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
+DATA_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_DIR = BASE_DIR / "output"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 CHANNEL_HANDLE = getattr(config, "CHANNEL_HANDLE", "")  # e.g. "@timgabelofficial"
+if not CHANNEL_HANDLE:
+    raise ValueError("CHANNEL_HANDLE missing in config.py")
 CHANNEL_SLUG = slugify_channel(CHANNEL_HANDLE)
 
 INPUT_PATH = DATA_DIR / f"aggregated_metrics_{CHANNEL_SLUG}.json"

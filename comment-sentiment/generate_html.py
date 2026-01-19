@@ -2,6 +2,7 @@ import pathlib
 import markdown
 import config
 
+
 def _slugify_channel(handle: str) -> str:
     s = (handle or "").strip()
     if s.startswith("@"):
@@ -10,32 +11,38 @@ def _slugify_channel(handle: str) -> str:
     s = "".join(ch for ch in s if ch.isalnum() or ch in ("-", "_"))
     return s or "channel"
 
+
 CHANNEL_HANDLE = getattr(config, "CHANNEL_HANDLE", "")
+if not CHANNEL_HANDLE:
+    raise ValueError("CHANNEL_HANDLE missing in config.py")
 CHANNEL_SLUG = _slugify_channel(CHANNEL_HANDLE)
 
-# --- Pfade ---
+# --- Paths ---
 BASE_DIR = pathlib.Path(__file__).resolve().parent
 OUTPUT_DIR = BASE_DIR / "output"
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-# Neuestes Report-MD für diesen Channel automatisch finden
-md_files = sorted(OUTPUT_DIR.glob("report_*.md"))
+# Find the latest report markdown for this channel automatically
+md_files = sorted(OUTPUT_DIR.glob(f"report_{CHANNEL_SLUG}_*.md"))
 if not md_files:
-    raise FileNotFoundError(f"Kein Markdown-Report gefunden für Channel '{CHANNEL_HANDLE}' (slug: {CHANNEL_SLUG}).")
+    raise FileNotFoundError(
+        f"No markdown report found for channel '{CHANNEL_HANDLE}' (slug: {CHANNEL_SLUG})."
+    )
 
-MD_FILE = md_files[-1]  # neuester Report für den Channel
+MD_FILE = md_files[-1]  # latest report for this channel
 HTML_FILE = OUTPUT_DIR / f"report_{CHANNEL_SLUG}.html"
 
-# Markdown laden
+# Load markdown
 with open(MD_FILE, "r", encoding="utf-8") as f:
     md_text = f.read()
 
-# Markdown zu HTML konvertieren
+# Convert markdown to HTML
 html_body = markdown.markdown(md_text, extensions=["tables", "fenced_code"])
 
-# HTML-Template
+# HTML template
 html_content = f"""
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <title>Community Sentiment Report</title>
@@ -55,8 +62,8 @@ html_content = f"""
 </html>
 """
 
-# HTML speichern
+# Save HTML
 with open(HTML_FILE, "w", encoding="utf-8") as f:
     f.write(html_content)
 
-print(f"HTML-Report erstellt: {HTML_FILE} (Quelle: {MD_FILE.name})")
+print(f"HTML report created: {HTML_FILE} (source: {MD_FILE.name})")

@@ -1,18 +1,15 @@
 import json
 import time
+import config
 from datetime import datetime
 from typing import List, Dict, Any, Optional
-
 from tqdm import tqdm
 from anthropic import Anthropic
-
-import config
-from config import (
-    CLAUDE_API_KEY,
-    CLAUDE_MODEL,
-    BATCH_SIZE,
-)
 from pathlib import Path
+
+CLAUDE_API_KEY = getattr(config, "CLAUDE_API_KEY", "")
+CLAUDE_MODEL = getattr(config, "CLAUDE_MODEL", "")
+BATCH_SIZE = int(getattr(config, "BATCH_SIZE", 10))
 
 def _slugify_channel(handle: str) -> str:
     s = (handle or "").strip()
@@ -26,10 +23,10 @@ CHANNEL_HANDLE = getattr(config, "CHANNEL_HANDLE", "")
 CHANNEL_SLUG = _slugify_channel(CHANNEL_HANDLE)
 
 # Base directory = comment-sentiment/
-BASE_DIR = Path(__file__).resolve().parent
-
-DATA_DIR = BASE_DIR / "data"
+ROOT_DIR = Path(__file__).resolve().parent
+DATA_DIR = ROOT_DIR / "data"
 DATA_DIR.mkdir(exist_ok=True)
+
 
 INPUT_PATH = DATA_DIR / f"raw_comments_{CHANNEL_SLUG}.json"
 OUTPUT_PATH = DATA_DIR / f"annotated_comments_{CHANNEL_SLUG}.json"  
@@ -311,8 +308,8 @@ def main():
         print("Nothing left to annotate.")
         return
 
-    if not CLAUDE_API_KEY:
-        raise ValueError("CLAUDE_API_KEY missing in config.py")
+    if not CLAUDE_MODEL:
+        raise ValueError("CLAUDE_MODEL missing in config.py")
     client = Anthropic(api_key=CLAUDE_API_KEY)
 
     for i in tqdm(range(0, len(remaining), BATCH_SIZE)):

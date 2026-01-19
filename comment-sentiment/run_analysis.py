@@ -18,6 +18,8 @@ def run(module: str) -> None:
 
 def main():
     channel_handle = getattr(config, "CHANNEL_HANDLE", "")
+    if not channel_handle:
+        raise ValueError("CHANNEL_HANDLE missing in config.py")
     channel_slug = _slugify_channel(channel_handle)
     print(f"Channel: {channel_handle}  (slug: {channel_slug})")
 

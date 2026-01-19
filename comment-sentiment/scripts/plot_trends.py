@@ -20,14 +20,15 @@ def _slugify_channel(handle: str) -> str:
 # -----------------------------
 # Paths & Channel
 # -----------------------------
-BASE_DIR = Path(__file__).resolve().parent.parent  # comment-sentiment/
-DATA_DIR = BASE_DIR / "data"
-OUTPUT_DIR = BASE_DIR / "output"
+ROOT_DIR = Path(__file__).resolve().parent.parent
+DATA_DIR = ROOT_DIR / "data"
+OUTPUT_DIR = ROOT_DIR / "output"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 CHANNEL_HANDLE = getattr(config, "CHANNEL_HANDLE", "")
 CHANNEL_SLUG = _slugify_channel(CHANNEL_HANDLE)
-
+if not CHANNEL_HANDLE:
+    raise ValueError("CHANNEL_HANDLE missing in config.py")
 INPUT_PATH = DATA_DIR / f"aggregated_metrics_{CHANNEL_SLUG}.json"
 OUTPUT_PATH = OUTPUT_DIR / f"sentiment_trend_{CHANNEL_SLUG}.png"
 
@@ -72,8 +73,8 @@ def main() -> None:
     
     for sentiment in pivot.columns:
         ax.plot(
-            pivot.index,
-            pivot[sentiment],
+            range(len(pivot.index)),
+            pivot[sentiment].values,
             marker="o",
             label=sentiment,
             color=COLOR_MAP.get(sentiment, "gray"),

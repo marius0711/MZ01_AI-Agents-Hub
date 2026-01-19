@@ -17,12 +17,14 @@ def _slugify_channel(handle: str) -> str:
     return s or "channel"
 
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = BASE_DIR / "data"
-OUTPUT_DIR = BASE_DIR / "output"
+ROOT_DIR = Path(__file__).resolve().parent.parent
+DATA_DIR = ROOT_DIR / "data"
+OUTPUT_DIR = ROOT_DIR / "output"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 CHANNEL_HANDLE = getattr(config, "CHANNEL_HANDLE", "")
+if not CHANNEL_HANDLE:
+    raise ValueError("CHANNEL_HANDLE missing in config.py")
 CHANNEL_SLUG = _slugify_channel(CHANNEL_HANDLE)
 
 INPUT_PATH = DATA_DIR / f"aggregated_metrics_{CHANNEL_SLUG}.json"

@@ -1,18 +1,16 @@
 import json
-import os
+import config
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from googleapiclient.discovery import build
 
-import config  # read optional settings safely
 
-from config import (
-    YOUTUBE_API_KEY,
-    CHANNEL_HANDLE,
-    MAX_VIDEOS,
-    MAX_COMMENTS,
-)
+YOUTUBE_API_KEY = getattr(config, "YOUTUBE_API_KEY", "")
+CHANNEL_HANDLE = getattr(config, "CHANNEL_HANDLE", "")
+MAX_VIDEOS = int(getattr(config, "MAX_VIDEOS", 10))
+MAX_COMMENTS = int(getattr(config, "MAX_COMMENTS", 2000))
+
 
 from pathlib import Path
 
@@ -26,8 +24,8 @@ def _slugify_channel(handle: str) -> str:
 
 CHANNEL_SLUG = _slugify_channel(CHANNEL_HANDLE)
 
-BASE_DIR = Path(__file__).resolve().parent  # wenn file im project-root liegt
-DATA_DIR = BASE_DIR / "data"
+ROOT_DIR = Path(__file__).resolve().parent
+DATA_DIR = ROOT_DIR / "data"
 DATA_DIR.mkdir(exist_ok=True)
 
 OUTPUT_PATH = DATA_DIR / f"raw_comments_{CHANNEL_SLUG}.json"
@@ -118,7 +116,7 @@ def get_channel_id(youtube) -> str:
     # 2) Fallback: search (less reliable)
     request = youtube.search().list(
         part="snippet",
-        q=handle,
+        q=handle.lstrip("@"),
         type="channel",
         maxResults=1,
     )

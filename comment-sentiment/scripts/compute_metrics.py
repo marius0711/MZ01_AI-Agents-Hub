@@ -37,10 +37,13 @@ def _slugify_channel(handle: str) -> str:
 
 
 CHANNEL_HANDLE = getattr(config, "CHANNEL_HANDLE", "")
+if not CHANNEL_HANDLE:
+    raise ValueError("CHANNEL_HANDLE missing in config.py")
 CHANNEL_SLUG = _slugify_channel(CHANNEL_HANDLE)
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = BASE_DIR / "data"
+ROOT_DIR = Path(__file__).resolve().parent.parent
+DATA_DIR = ROOT_DIR / "data"
+DATA_DIR.mkdir(exist_ok=True)
 
 INPUT_PATH = DATA_DIR / f"annotated_comments_{CHANNEL_SLUG}.json"
 OUTPUT_PATH = DATA_DIR / f"aggregated_metrics_{CHANNEL_SLUG}.json"
