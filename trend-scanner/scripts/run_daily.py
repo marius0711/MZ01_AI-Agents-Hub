@@ -2,6 +2,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from rich import print
+from datetime import datetime
 
 from trend_scanner.config.settings import Settings
 from trend_scanner.db.models import Base
@@ -36,7 +37,8 @@ def main() -> None:
         print(f"[green]Inserted[/green] {inserted} new posts (deduped).")
         md = render_digest_md(session, subreddits=subreddits, limit=30)
 
-    out_path = Path(s.output_dir) / "digest.md"
+    date_str = datetime.utcnow().strftime("%Y-%m-%d")
+    out_path = Path(s.output_dir) / f"digest_{date_str}.md"
     out_path.write_text(md, encoding="utf-8")
     print(f"[bold cyan]Wrote[/bold cyan] {out_path}")
 
