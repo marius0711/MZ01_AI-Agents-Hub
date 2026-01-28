@@ -1,0 +1,1185 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Channel Analyzer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Crimson+Pro:wght@300;600&display=swap');
+        
+        :root {
+            --bg-dark: #0a0a0a;
+            --bg-card: #1a1a1a;
+            --accent-primary: #00ff88;
+            --accent-secondary: #ff006e;
+            --text-primary: #ffffff;
+            --text-muted: #888888;
+            --border: #2a2a2a;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Space Mono', monospace;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+        
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 60px;
+            position: relative;
+        }
+        
+        h1 {
+            font-family: 'Crimson Pro', serif;
+            font-size: 4rem;
+            font-weight: 600;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+            animation: fadeInDown 0.8s ease;
+        }
+        
+        .subtitle {
+            color: var(--text-muted);
+            font-size: 1rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+        
+        .upload-zone {
+            border: 3px dashed var(--border);
+            border-radius: 20px;
+            padding: 60px 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: var(--bg-card);
+            margin-bottom: 40px;
+        }
+        
+        .upload-zone:hover {
+            border-color: var(--accent-primary);
+            background: rgba(0, 255, 136, 0.05);
+            transform: translateY(-2px);
+        }
+        
+        .upload-zone.dragging {
+            border-color: var(--accent-secondary);
+            background: rgba(255, 0, 110, 0.1);
+            transform: scale(1.02);
+        }
+        
+        .file-input {
+            display: none;
+        }
+        
+        .upload-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            opacity: 0.6;
+        }
+        
+        .upload-text {
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+        }
+        
+        .upload-hint {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+        
+        .status {
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            text-align: center;
+            display: none;
+            animation: slideIn 0.5s ease;
+        }
+        
+        .status.success {
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid var(--accent-primary);
+        }
+        
+        .status.error {
+            background: rgba(255, 0, 110, 0.1);
+            border: 1px solid var(--accent-secondary);
+        }
+        
+        .dashboard {
+            display: none;
+            animation: fadeIn 0.8s ease;
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+        
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 15px;
+            padding: 30px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+            transform: scaleX(0);
+            transition: transform 0.3s ease;
+        }
+        
+        .card:hover {
+            border-color: var(--accent-primary);
+            transform: translateY(-5px);
+            box-shadow: 0 10px 40px rgba(0, 255, 136, 0.2);
+        }
+        
+        .card:hover::before {
+            transform: scaleX(1);
+        }
+        
+        .card-title {
+            font-family: 'Crimson Pro', serif;
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            color: var(--accent-primary);
+        }
+        
+        .stat-value {
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .stat-label {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 400px;
+            margin-top: 20px;
+        }
+        
+        .video-list {
+            list-style: none;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        
+        .video-item {
+            padding: 15px;
+            border-bottom: 1px solid var(--border);
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        
+        .video-item:hover {
+            background: rgba(0, 255, 136, 0.05);
+            padding-left: 25px;
+        }
+        
+        .video-rank {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            background: var(--accent-primary);
+            color: var(--bg-dark);
+            border-radius: 50%;
+            text-align: center;
+            line-height: 40px;
+            font-weight: 700;
+            margin-right: 15px;
+        }
+        
+        .video-title {
+            font-size: 0.95rem;
+            margin-bottom: 5px;
+        }
+        
+        .video-stats {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+        
+        .category-tag {
+            display: inline-block;
+            padding: 5px 12px;
+            background: rgba(0, 255, 136, 0.2);
+            border-radius: 15px;
+            font-size: 0.75rem;
+            margin-right: 8px;
+            margin-top: 8px;
+        }
+        
+        .insights {
+            background: var(--bg-card);
+            border-left: 4px solid var(--accent-secondary);
+            padding: 20px;
+            margin: 30px 0;
+            border-radius: 10px;
+        }
+        
+        .insights h3 {
+            font-family: 'Crimson Pro', serif;
+            color: var(--accent-secondary);
+            margin-bottom: 15px;
+        }
+        
+        .insight-item {
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .insight-item:last-child {
+            border-bottom: none;
+        }
+        
+        .export-btn {
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            color: var(--bg-dark);
+            padding: 15px 30px;
+            border: none;
+            border-radius: 10px;
+            font-family: 'Space Mono', monospace;
+            font-weight: 700;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .export-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(0, 255, 136, 0.4);
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(-100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 10px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: var(--bg-card);
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: var(--accent-primary);
+            border-radius: 5px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--accent-secondary);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>YouTube Analytics</h1>
+            <p class="subtitle">Performance Dashboard</p>
+        </header>
+        
+        <div class="upload-zone" id="uploadZone">
+            <div class="upload-icon">📊</div>
+            <div class="upload-text">CSV-Dateien hier ablegen</div>
+            <div class="upload-hint">oder klicken zum Auswählen</div>
+            <input type="file" class="file-input" id="fileInput" accept=".csv" multiple>
+        </div>
+        
+        <div class="status" id="status"></div>
+        
+        <div class="dashboard" id="dashboard">
+            <div class="grid">
+                <div class="card">
+                    <h3 class="card-title">Gesamt Aufrufe</h3>
+                    <div class="stat-value" id="totalViews">-</div>
+                    <div class="stat-label">Views Total</div>
+                </div>
+                
+                <div class="card">
+                    <h3 class="card-title">Durchschnitt CTR</h3>
+                    <div class="stat-value" id="avgCTR">-</div>
+                    <div class="stat-label">Click-Through-Rate</div>
+                </div>
+                
+                <div class="card">
+                    <h3 class="card-title">Top Performer</h3>
+                    <div class="stat-value" id="topViews">-</div>
+                    <div class="stat-label">Höchste Aufrufe</div>
+                </div>
+                
+                <div class="card">
+                    <h3 class="card-title">Neue Abonnenten</h3>
+                    <div class="stat-value" id="totalSubs">-</div>
+                    <div class="stat-label">Gesamt</div>
+                </div>
+            </div>
+            
+            <div class="insights" id="insights">
+                <h3>🔍 Erkenntnisse & Muster</h3>
+                <div id="insightsList"></div>
+            </div>
+            
+            <div class="grid">
+                <div class="card">
+                    <h3 class="card-title">Top 10 Videos nach Aufrufen</h3>
+                    <ul class="video-list" id="topVideosList"></ul>
+                </div>
+                
+                <div class="card">
+                    <h3 class="card-title">Performance nach Videolänge</h3>
+                    <div class="chart-container">
+                        <canvas id="lengthChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h3 class="card-title">CTR vs. Aufrufe Korrelation</h3>
+                <div class="chart-container">
+                    <canvas id="ctrChart"></canvas>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h3 class="card-title">Themen-Kategorien</h3>
+                <div id="categoriesList"></div>
+                <div class="chart-container">
+                    <canvas id="categoryChart"></canvas>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h3 class="card-title">Zeitreihen-Analyse</h3>
+                <div class="chart-container">
+                    <canvas id="timelineChart"></canvas>
+                </div>
+            </div>
+            
+            <div class="insights" style="background: linear-gradient(135deg, rgba(0, 255, 136, 0.1), rgba(255, 0, 110, 0.1)); border-left: 4px solid var(--accent-primary);">
+                <h3>⏰ Upload-Timing-Analyse</h3>
+                <div id="timingInsights"></div>
+                <div class="chart-container" style="margin-top: 20px;">
+                    <canvas id="timingChart"></canvas>
+                </div>
+            </div>
+            
+            <div class="insights" style="background: linear-gradient(135deg, rgba(255, 0, 110, 0.1), rgba(0, 255, 136, 0.1)); border-left: 4px solid var(--accent-secondary);">
+                <h3>✍️ Titel-Optimierungs-Tool</h3>
+                <div id="titleInsights"></div>
+                <div class="grid" style="margin-top: 20px;">
+                    <div class="card" style="background: rgba(0, 255, 136, 0.05);">
+                        <h4 style="color: var(--accent-primary); margin-bottom: 15px;">Top Titel-Patterns</h4>
+                        <div id="titlePatterns"></div>
+                    </div>
+                    <div class="card" style="background: rgba(255, 0, 110, 0.05);">
+                        <h4 style="color: var(--accent-secondary); margin-bottom: 15px;">Empfehlungen</h4>
+                        <div id="titleRecommendations"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="text-align: center; margin-top: 40px;">
+                <button class="export-btn" onclick="exportInsights()">Insights als TXT exportieren</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let videoData = [];
+        let timelineData = [];
+        let overallData = [];
+        
+        // Upload Zone Setup
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fileInput');
+        const status = document.getElementById('status');
+        const dashboard = document.getElementById('dashboard');
+        
+        uploadZone.addEventListener('click', () => fileInput.click());
+        
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragging');
+        });
+        
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragging');
+        });
+        
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragging');
+            handleFiles(e.dataTransfer.files);
+        });
+        
+        fileInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+        });
+        
+        function handleFiles(files) {
+            if (files.length === 0) return;
+            
+            showStatus('Analysiere Daten...', 'success');
+            
+            let filesProcessed = 0;
+            const totalFiles = files.length;
+            
+            Array.from(files).forEach(file => {
+                Papa.parse(file, {
+                    header: true,
+                    complete: (results) => {
+                        processCSV(file.name, results.data);
+                        filesProcessed++;
+                        
+                        if (filesProcessed === totalFiles) {
+                            setTimeout(() => {
+                                analyzeData();
+                            }, 500);
+                        }
+                    },
+                    error: (error) => {
+                        showStatus(`Fehler beim Laden von ${file.name}: ${error}`, 'error');
+                    }
+                });
+            });
+        }
+        
+        function processCSV(filename, data) {
+            if (filename.toLowerCase().includes('tabellen')) {
+                videoData = data.filter(row => row.Videos && row.Videos !== 'Gesamt');
+            } else if (filename.toLowerCase().includes('diagramm')) {
+                timelineData = data.filter(row => row.Datum && row.Aufrufe);
+            } else if (filename.toLowerCase().includes('gesamt')) {
+                overallData = data.filter(row => row.Datum && row.Aufrufe);
+            }
+        }
+        
+        function showStatus(message, type) {
+            status.textContent = message;
+            status.className = `status ${type}`;
+            status.style.display = 'block';
+            
+            if (type === 'success') {
+                setTimeout(() => {
+                    status.style.display = 'none';
+                }, 3000);
+            }
+        }
+        
+        function analyzeData() {
+            if (videoData.length === 0) {
+                showStatus('Bitte lade mindestens die Tabellendaten.csv hoch!', 'error');
+                return;
+            }
+            
+            showStatus('Analyse abgeschlossen! ✓', 'success');
+            dashboard.style.display = 'block';
+            
+            calculateStats();
+            displayTopVideos();
+            generateInsights();
+            createCharts();
+            analyzeTimingPatterns();
+            analyzeTitlePatterns();
+        }
+        
+        function analyzeTimingPatterns() {
+            const timingData = {};
+            const weekdayOrder = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const weekdayNames = {
+                'Sunday': 'Sonntag',
+                'Monday': 'Montag',
+                'Tuesday': 'Dienstag',
+                'Wednesday': 'Mittwoch',
+                'Thursday': 'Donnerstag',
+                'Friday': 'Freitag',
+                'Saturday': 'Samstag'
+            };
+            
+            // Initialize weekday stats
+            weekdayOrder.forEach(day => {
+                timingData[day] = { views: [], ctr: [] };
+            });
+            
+            // Parse and aggregate data
+            videoData.forEach(video => {
+                const dateStr = video['Veröffentlichungszeitpunkt des Videos'];
+                if (!dateStr) return;
+                
+                try {
+                    const date = new Date(dateStr);
+                    const weekday = weekdayOrder[date.getDay()];
+                    const views = parseFloat(video.Aufrufe || 0);
+                    const ctr = parseFloat(video['Klickrate der Impressionen (%)'] || 0);
+                    
+                    if (weekday && views > 0) {
+                        timingData[weekday].views.push(views);
+                        timingData[weekday].ctr.push(ctr);
+                    }
+                } catch (e) {
+                    // Skip invalid dates
+                }
+            });
+            
+            // Calculate averages
+            const weekdayStats = weekdayOrder.map(day => {
+                const views = timingData[day].views;
+                const ctr = timingData[day].ctr;
+                const avgViews = views.length > 0 ? views.reduce((a, b) => a + b, 0) / views.length : 0;
+                const avgCtr = ctr.length > 0 ? ctr.reduce((a, b) => a + b, 0) / ctr.length : 0;
+                
+                return {
+                    day: weekdayNames[day],
+                    dayEn: day,
+                    count: views.length,
+                    avgViews: Math.round(avgViews),
+                    avgCtr: avgCtr.toFixed(2)
+                };
+            }).filter(stat => stat.count > 0);
+            
+            // Find best day
+            const bestDay = weekdayStats.reduce((best, current) => 
+                current.avgViews > best.avgViews ? current : best
+            , weekdayStats[0]);
+            
+            const worstDay = weekdayStats.reduce((worst, current) => 
+                current.avgViews < worst.avgViews ? current : worst
+            , weekdayStats[0]);
+            
+            // Display insights
+            const timingInsights = document.getElementById('timingInsights');
+            timingInsights.innerHTML = `
+                <div class="insight-item">
+                    🏆 <strong>Bester Upload-Tag:</strong> ${bestDay.day} mit ∅${bestDay.avgViews.toLocaleString('de-DE')} Aufrufen
+                    (${bestDay.count} Videos)
+                </div>
+                <div class="insight-item">
+                    📉 <strong>Schwächster Tag:</strong> ${worstDay.day} mit ∅${worstDay.avgViews.toLocaleString('de-DE')} Aufrufen
+                    (${worstDay.count} Videos)
+                </div>
+                <div class="insight-item">
+                    💡 <strong>Empfehlung:</strong> Upload-Frequenz an ${bestDay.day} erhöhen - 
+                    ${((bestDay.avgViews / worstDay.avgViews - 1) * 100).toFixed(0)}% mehr Performance!
+                </div>
+            `;
+            
+            // Create timing chart
+            const ctx = document.getElementById('timingChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: weekdayStats.map(s => s.day),
+                    datasets: [{
+                        label: 'Durchschn. Aufrufe',
+                        data: weekdayStats.map(s => s.avgViews),
+                        backgroundColor: weekdayStats.map(s => 
+                            s.day === bestDay.day ? 'rgba(0, 255, 136, 0.8)' : 'rgba(0, 255, 136, 0.4)'
+                        ),
+                        borderColor: 'rgba(0, 255, 136, 1)',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                            ticks: { color: '#888' }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: '#888' }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function analyzeTitlePatterns() {
+            const patterns = {
+                question: { videos: [], name: 'Fragen (?)' },
+                exclamation: { videos: [], name: 'Ausrufezeichen (!)' },
+                colon: { videos: [], name: 'Doppelpunkt/Gedankenstrich (:–)' },
+                parentheses: { videos: [], name: 'Klammern (...)' },
+                numbers: { videos: [], name: 'Zahlen' },
+                short: { videos: [], name: 'Kurze Titel (<50 Zeichen)' },
+                medium: { videos: [], name: 'Mittlere Titel (50-80 Zeichen)' },
+                long: { videos: [], name: 'Lange Titel (>80 Zeichen)' }
+            };
+            
+            const baseline = {
+                views: videoData.reduce((sum, v) => sum + parseFloat(v.Aufrufe || 0), 0) / videoData.length,
+                ctr: videoData.reduce((sum, v) => sum + parseFloat(v['Klickrate der Impressionen (%)'] || 0), 0) / videoData.length
+            };
+            
+            videoData.forEach(video => {
+                const title = video.Videotitel;
+                const views = parseFloat(video.Aufrufe || 0);
+                const ctr = parseFloat(video['Klickrate der Impressionen (%)'] || 0);
+                
+                if (!title || views === 0) return;
+                
+                const data = { title, views, ctr };
+                
+                if (title.includes('?')) patterns.question.videos.push(data);
+                if (title.includes('!')) patterns.exclamation.videos.push(data);
+                if (title.includes(':') || title.includes('–') || title.includes('—')) patterns.colon.videos.push(data);
+                if (title.includes('(')) patterns.parentheses.videos.push(data);
+                if (/\d/.test(title)) patterns.numbers.videos.push(data);
+                
+                const length = title.length;
+                if (length < 50) patterns.short.videos.push(data);
+                else if (length < 80) patterns.medium.videos.push(data);
+                else patterns.long.videos.push(data);
+            });
+            
+            // Calculate stats
+            const patternStats = Object.entries(patterns).map(([key, pattern]) => {
+                if (pattern.videos.length === 0) return null;
+                
+                const avgViews = pattern.videos.reduce((sum, v) => sum + v.views, 0) / pattern.videos.length;
+                const avgCtr = pattern.videos.reduce((sum, v) => sum + v.ctr, 0) / pattern.videos.length;
+                const performance = ((avgViews / baseline.views - 1) * 100).toFixed(0);
+                
+                return {
+                    key,
+                    name: pattern.name,
+                    count: pattern.videos.length,
+                    avgViews: Math.round(avgViews),
+                    avgCtr: avgCtr.toFixed(2),
+                    performance: parseFloat(performance),
+                    topExample: pattern.videos.sort((a, b) => b.views - a.views)[0].title
+                };
+            }).filter(s => s !== null);
+            
+            // Sort by performance
+            patternStats.sort((a, b) => b.performance - a.performance);
+            
+            // Display top patterns
+            const topPatterns = patternStats.slice(0, 5);
+            const patternsDiv = document.getElementById('titlePatterns');
+            patternsDiv.innerHTML = topPatterns.map((pattern, i) => `
+                <div style="padding: 12px 0; border-bottom: 1px solid var(--border);">
+                    <div style="font-weight: 700; margin-bottom: 5px;">
+                        ${i + 1}. ${pattern.name}
+                        <span style="color: ${pattern.performance > 0 ? 'var(--accent-primary)' : 'var(--accent-secondary)'};">
+                            ${pattern.performance > 0 ? '+' : ''}${pattern.performance}%
+                        </span>
+                    </div>
+                    <div style="font-size: 0.85rem; color: var(--text-muted);">
+                        ${pattern.count} Videos • ∅${pattern.avgViews.toLocaleString('de-DE')} Views • ${pattern.avgCtr}% CTR
+                    </div>
+                </div>
+            `).join('');
+            
+            // Generate recommendations
+            const recommendations = [];
+            
+            // Best pattern
+            const best = patternStats[0];
+            recommendations.push(`<strong>Top-Performer:</strong> ${best.name} mit ${best.performance > 0 ? '+' : ''}${best.performance}% über Baseline`);
+            
+            // Specific insights
+            const hasQuestion = patternStats.find(p => p.key === 'question');
+            const hasExclamation = patternStats.find(p => p.key === 'exclamation');
+            const hasParentheses = patternStats.find(p => p.key === 'parentheses');
+            const longTitles = patternStats.find(p => p.key === 'long');
+            
+            if (hasExclamation && hasExclamation.performance > 0) {
+                recommendations.push(`Ausrufezeichen steigern Performance um ${hasExclamation.performance}% - öfter nutzen!`);
+            }
+            
+            if (hasParentheses && hasParentheses.performance > 10) {
+                recommendations.push(`Zusatz-Infos in Klammern funktionieren sehr gut (+${hasParentheses.performance}%)`);
+            }
+            
+            if (longTitles && longTitles.performance > 20) {
+                recommendations.push(`Lange, detaillierte Titel performen stark (+${longTitles.performance}%) - Kontext hilft!`);
+            }
+            
+            // CTR insight
+            const highCTR = patternStats.filter(p => parseFloat(p.avgCtr) > baseline.ctr);
+            if (highCTR.length > 0) {
+                const bestCTR = highCTR.sort((a, b) => b.avgCtr - a.avgCtr)[0];
+                recommendations.push(`Für beste CTR: ${bestCTR.name} nutzen (${bestCTR.avgCtr}% vs. ${baseline.ctr.toFixed(2)}% Baseline)`);
+            }
+            
+            const recsDiv = document.getElementById('titleRecommendations');
+            recsDiv.innerHTML = recommendations.map(rec => `
+                <div class="insight-item">💡 ${rec}</div>
+            `).join('');
+            
+            // Display general insights
+            const titleInsights = document.getElementById('titleInsights');
+            titleInsights.innerHTML = `
+                <div class="insight-item">
+                    📊 <strong>Baseline:</strong> ∅${Math.round(baseline.views).toLocaleString('de-DE')} Aufrufe, 
+                    ${baseline.ctr.toFixed(2)}% CTR
+                </div>
+                <div class="insight-item">
+                    🎯 <strong>Best Practice:</strong> ${best.name} - Beispiel: "${best.topExample}"
+                </div>
+            `;
+        }
+        
+        function calculateStats() {
+            const totalViews = videoData.reduce((sum, v) => sum + parseFloat(v.Aufrufe || 0), 0);
+            const avgCTR = videoData.reduce((sum, v) => sum + parseFloat(v['Klickrate der Impressionen (%)'] || 0), 0) / videoData.length;
+            const topVideo = videoData.reduce((max, v) => parseFloat(v.Aufrufe || 0) > parseFloat(max.Aufrufe || 0) ? v : max, videoData[0]);
+            const totalSubs = videoData.reduce((sum, v) => sum + parseInt(v.Abonnenten || 0), 0);
+            
+            document.getElementById('totalViews').textContent = totalViews.toLocaleString('de-DE');
+            document.getElementById('avgCTR').textContent = avgCTR.toFixed(2) + '%';
+            document.getElementById('topViews').textContent = parseFloat(topVideo.Aufrufe || 0).toLocaleString('de-DE');
+            document.getElementById('totalSubs').textContent = totalSubs > 0 ? '+' + totalSubs : totalSubs;
+        }
+        
+        function displayTopVideos() {
+            const topVideos = [...videoData]
+                .sort((a, b) => parseFloat(b.Aufrufe || 0) - parseFloat(a.Aufrufe || 0))
+                .slice(0, 10);
+            
+            const list = document.getElementById('topVideosList');
+            list.innerHTML = topVideos.map((video, index) => `
+                <li class="video-item">
+                    <span class="video-rank">${index + 1}</span>
+                    <div style="display: inline-block; vertical-align: top; width: calc(100% - 60px);">
+                        <div class="video-title">${video.Videotitel}</div>
+                        <div class="video-stats">
+                            👁 ${parseFloat(video.Aufrufe || 0).toLocaleString('de-DE')} Aufrufe • 
+                            📊 ${video['Klickrate der Impressionen (%)'] || '0'}% CTR • 
+                            ⏱ ${Math.round(video.Dauer / 60)}min
+                        </div>
+                    </div>
+                </li>
+            `).join('');
+        }
+        
+        function categorizeVideo(title) {
+            const categories = {
+                'Debatten': ['debatte', 'gespräch', 'diskussion', 'im gespräch'],
+                'Analysen': ['analysiert', 'analyse', 'erklärt'],
+                'Bias/Fehlschlüsse': ['bias', 'fehlschluss', 'denkfalle', 'geistesblitz'],
+                'Philosophie': ['philosophie', 'ethik', 'stoizismus', 'aristoteles'],
+                'Politik': ['afd', 'merz', 'politik', 'ice', 'rechte', 'links'],
+                'Kritik': ['problem mit', 'zerstört', 'blamiert', 'widerlegt'],
+                'Religion': ['religion', 'gott', 'kirche', 'christfluencer']
+            };
+            
+            const titleLower = title.toLowerCase();
+            for (const [category, keywords] of Object.entries(categories)) {
+                if (keywords.some(keyword => titleLower.includes(keyword))) {
+                    return category;
+                }
+            }
+            return 'Sonstiges';
+        }
+        
+        function generateInsights() {
+            const insights = [];
+            
+            // Top performer length analysis
+            const topVideos = [...videoData]
+                .sort((a, b) => parseFloat(b.Aufrufe || 0) - parseFloat(a.Aufrufe || 0))
+                .slice(0, 10);
+            
+            const avgTopLength = topVideos.reduce((sum, v) => sum + parseInt(v.Dauer || 0), 0) / topVideos.length / 60;
+            insights.push(`Top 10 Videos sind durchschnittlich ${avgTopLength.toFixed(0)} Minuten lang`);
+            
+            // CTR analysis
+            const highCTR = videoData.filter(v => parseFloat(v['Klickrate der Impressionen (%)'] || 0) > 5);
+            insights.push(`${highCTR.length} Videos haben eine CTR über 5% (überdurchschnittlich!)`);
+            
+            // Category analysis
+            const categories = {};
+            videoData.forEach(video => {
+                const cat = categorizeVideo(video.Videotitel);
+                categories[cat] = (categories[cat] || 0) + parseFloat(video.Aufrufe || 0);
+            });
+            
+            const topCategory = Object.entries(categories).sort((a, b) => b[1] - a[1])[0];
+            insights.push(`Erfolgreichste Kategorie: "${topCategory[0]}" mit ${topCategory[1].toLocaleString('de-DE')} Aufrufen`);
+            
+            // Subscriber gain analysis
+            const subsGainers = videoData.filter(v => parseInt(v.Abonnenten || 0) > 10);
+            if (subsGainers.length > 0) {
+                insights.push(`${subsGainers.length} Videos haben mehr als 10 neue Abonnenten gebracht`);
+            }
+            
+            // Short vs long form
+            const shorts = videoData.filter(v => parseInt(v.Dauer || 0) < 180); // unter 3 min
+            const longform = videoData.filter(v => parseInt(v.Dauer || 0) > 600); // über 10 min
+            
+            const avgViewsShorts = shorts.reduce((sum, v) => sum + parseFloat(v.Aufrufe || 0), 0) / shorts.length;
+            const avgViewsLong = longform.reduce((sum, v) => sum + parseFloat(v.Aufrufe || 0), 0) / longform.length;
+            
+            if (avgViewsShorts > avgViewsLong) {
+                insights.push(`Kurze Videos (<3min) performen besser: ∅${avgViewsShorts.toFixed(0)} vs. ∅${avgViewsLong.toFixed(0)} Views`);
+            } else {
+                insights.push(`Lange Videos (>10min) performen besser: ∅${avgViewsLong.toFixed(0)} vs. ∅${avgViewsShorts.toFixed(0)} Views`);
+            }
+            
+            const list = document.getElementById('insightsList');
+            list.innerHTML = insights.map(insight => `
+                <div class="insight-item">💡 ${insight}</div>
+            `).join('');
+        }
+        
+        function createCharts() {
+            createLengthChart();
+            createCTRChart();
+            createCategoryChart();
+            createTimelineChart();
+        }
+        
+        function createLengthChart() {
+            const ctx = document.getElementById('lengthChart').getContext('2d');
+            
+            const buckets = {
+                '<1min': [],
+                '1-5min': [],
+                '5-15min': [],
+                '15-30min': [],
+                '>30min': []
+            };
+            
+            videoData.forEach(video => {
+                const duration = parseInt(video.Dauer || 0) / 60;
+                const views = parseFloat(video.Aufrufe || 0);
+                
+                if (duration < 1) buckets['<1min'].push(views);
+                else if (duration < 5) buckets['1-5min'].push(views);
+                else if (duration < 15) buckets['5-15min'].push(views);
+                else if (duration < 30) buckets['15-30min'].push(views);
+                else buckets['>30min'].push(views);
+            });
+            
+            const avgViews = Object.entries(buckets).map(([key, values]) => 
+                values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 0
+            );
+            
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(buckets),
+                    datasets: [{
+                        label: 'Durchschn. Aufrufe',
+                        data: avgViews,
+                        backgroundColor: 'rgba(0, 255, 136, 0.6)',
+                        borderColor: 'rgba(0, 255, 136, 1)',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                            ticks: { color: '#888' }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: '#888' }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function createCTRChart() {
+            const ctx = document.getElementById('ctrChart').getContext('2d');
+            
+            const data = videoData
+                .filter(v => parseFloat(v['Klickrate der Impressionen (%)'] || 0) > 0)
+                .map(v => ({
+                    x: parseFloat(v['Klickrate der Impressionen (%)'] || 0),
+                    y: parseFloat(v.Aufrufe || 0)
+                }));
+            
+            new Chart(ctx, {
+                type: 'scatter',
+                data: {
+                    datasets: [{
+                        label: 'Videos',
+                        data: data,
+                        backgroundColor: 'rgba(255, 0, 110, 0.6)',
+                        borderColor: 'rgba(255, 0, 110, 1)',
+                        borderWidth: 2,
+                        pointRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            title: { display: true, text: 'Aufrufe', color: '#888' },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                            ticks: { color: '#888' }
+                        },
+                        x: {
+                            title: { display: true, text: 'CTR (%)', color: '#888' },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                            ticks: { color: '#888' }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function createCategoryChart() {
+            const categories = {};
+            
+            videoData.forEach(video => {
+                const cat = categorizeVideo(video.Videotitel);
+                if (!categories[cat]) categories[cat] = { views: 0, count: 0 };
+                categories[cat].views += parseFloat(video.Aufrufe || 0);
+                categories[cat].count += 1;
+            });
+            
+            const sortedCats = Object.entries(categories)
+                .sort((a, b) => b[1].views - a[1].views);
+            
+            const list = document.getElementById('categoriesList');
+            list.innerHTML = sortedCats.map(([cat, data]) => `
+                <span class="category-tag">${cat}: ${data.count} Videos, ${data.views.toLocaleString('de-DE')} Views</span>
+            `).join('');
+            
+            const ctx = document.getElementById('categoryChart').getContext('2d');
+            
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: sortedCats.map(([cat]) => cat),
+                    datasets: [{
+                        data: sortedCats.map(([, data]) => data.views),
+                        backgroundColor: [
+                            'rgba(0, 255, 136, 0.8)',
+                            'rgba(255, 0, 110, 0.8)',
+                            'rgba(0, 200, 255, 0.8)',
+                            'rgba(255, 200, 0, 0.8)',
+                            'rgba(200, 0, 255, 0.8)',
+                            'rgba(255, 100, 0, 0.8)',
+                            'rgba(0, 255, 200, 0.8)',
+                            'rgba(255, 0, 200, 0.8)'
+                        ],
+                        borderWidth: 2,
+                        borderColor: '#0a0a0a'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { color: '#888', padding: 15 }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function createTimelineChart() {
+            if (overallData.length === 0) return;
+            
+            const ctx = document.getElementById('timelineChart').getContext('2d');
+            
+            const sortedData = overallData.sort((a, b) => new Date(a.Datum) - new Date(b.Datum));
+            
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: sortedData.map(d => d.Datum),
+                    datasets: [{
+                        label: 'Tägliche Aufrufe',
+                        data: sortedData.map(d => parseFloat(d.Aufrufe || 0)),
+                        borderColor: 'rgba(0, 255, 136, 1)',
+                        backgroundColor: 'rgba(0, 255, 136, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                            ticks: { color: '#888' }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { 
+                                color: '#888',
+                                maxTicksLimit: 12
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function exportInsights() {
+            let report = '=== YOUTUBE CHANNEL ANALYSE ===\n\n';
+            report += `Generiert am: ${new Date().toLocaleString('de-DE')}\n\n`;
+            
+            report += '--- GESAMTSTATISTIKEN ---\n';
+            report += `Gesamt Aufrufe: ${document.getElementById('totalViews').textContent}\n`;
+            report += `Durchschn. CTR: ${document.getElementById('avgCTR').textContent}\n`;
+            report += `Höchste Aufrufe: ${document.getElementById('topViews').textContent}\n`;
+            report += `Neue Abonnenten: ${document.getElementById('totalSubs').textContent}\n\n`;
+            
+            report += '--- TOP 10 VIDEOS ---\n';
+            const topVideos = [...videoData]
+                .sort((a, b) => parseFloat(b.Aufrufe || 0) - parseFloat(a.Aufrufe || 0))
+                .slice(0, 10);
+            
+            topVideos.forEach((video, i) => {
+                report += `${i+1}. ${video.Videotitel}\n`;
+                report += `   Aufrufe: ${parseFloat(video.Aufrufe || 0).toLocaleString('de-DE')}\n`;
+                report += `   CTR: ${video['Klickrate der Impressionen (%)'] || '0'}%\n`;
+                report += `   Dauer: ${Math.round(video.Dauer / 60)}min\n\n`;
+            });
+            
+            report += '--- ERKENNTNISSE ---\n';
+            const insights = document.getElementById('insightsList').textContent;
+            report += insights.replace(/💡/g, '- ') + '\n\n';
+            
+            report += '--- KATEGORIEN ---\n';
+            const categories = {};
+            videoData.forEach(video => {
+                const cat = categorizeVideo(video.Videotitel);
+                if (!categories[cat]) categories[cat] = { views: 0, count: 0 };
+                categories[cat].views += parseFloat(video.Aufrufe || 0);
+                categories[cat].count += 1;
+            });
+            
+            Object.entries(categories)
+                .sort((a, b) => b[1].views - a[1].views)
+                .forEach(([cat, data]) => {
+                    report += `${cat}: ${data.count} Videos, ${data.views.toLocaleString('de-DE')} Views\n`;
+                });
+            
+            report += '\n--- UPLOAD-TIMING ---\n';
+            const timingInsights = document.getElementById('timingInsights');
+            if (timingInsights) {
+                report += timingInsights.textContent.replace(/🏆|📉|💡/g, '').trim() + '\n';
+            }
+            
+            report += '\n--- TITEL-OPTIMIERUNG ---\n';
+            const titleInsights = document.getElementById('titleInsights');
+            const titlePatterns = document.getElementById('titlePatterns');
+            const titleRecommendations = document.getElementById('titleRecommendations');
+            
+            if (titleInsights) {
+                report += titleInsights.textContent.replace(/📊|🎯/g, '').trim() + '\n\n';
+            }
+            
+            if (titlePatterns) {
+                report += 'Top Titel-Patterns:\n';
+                report += titlePatterns.textContent.trim() + '\n\n';
+            }
+            
+            if (titleRecommendations) {
+                report += 'Empfehlungen:\n';
+                report += titleRecommendations.textContent.replace(/💡/g, '- ').trim() + '\n';
+            }
+            
+            const blob = new Blob([report], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `youtube_analyse_${new Date().toISOString().split('T')[0]}.txt`;
+            a.click();
+        }
+    </script>
+</body>
+</html>
